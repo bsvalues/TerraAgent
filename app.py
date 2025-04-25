@@ -53,18 +53,48 @@ try:
         db.create_all()
         logger.info("Database tables created successfully")
     
-    # Vector store functionality is not available in this version
-    logger.warning("Vector store functionality is currently disabled")
-    vs = None
-    qa_chain = None
+    # Initialize RAG functionality
+    try:
+        from utils.rag import create_rag_chain, run_rag_query
+        qa_chain = run_rag_query
+        logger.info("RAG functionality initialized successfully")
+    except Exception as e:
+        logger.warning(f"Vector store functionality is currently disabled: {str(e)}")
+        qa_chain = None
     
     # Initialize Levy Calculator chain
     levy_chain = create_levy_chain()
     logger.info("Levy calculator chain initialized successfully")
     
     # Initialize Neighborhood Trends chain
-    trends_chain = create_neighborhood_trend_chain(conn_str)
-    logger.info("Neighborhood trends chain initialized successfully")
+    try:
+        trends_chain = create_neighborhood_trend_chain(conn_str)
+        logger.info("Neighborhood trends chain initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to create neighborhood trends chain: {str(e)}")
+        logger.warning("Using fallback neighborhood trends chain")
+        
+        # Create simple template for trends analysis
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_openai import ChatOpenAI
+        
+        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+        # do not change this unless explicitly requested by the user
+        trends_llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        trends_template = """You are analyzing neighborhood property trends. 
+        However, you currently do not have access to the actual data. 
+        Please inform the user that the neighborhood trend analysis is currently unavailable 
+        and suggest they try a general property query instead."""
+        
+        trends_prompt = ChatPromptTemplate.from_template(trends_template)
+        
+        # Create a simple chain that always returns the same message
+        def trends_chain(inputs):
+            result = trends_prompt | trends_llm
+            response = result.invoke({})
+            return {"answer": response.content}
+            
+        logger.info("Neighborhood trends fallback chain initialized successfully")
     
 except Exception as e:
     logger.critical(f"Failed to initialize database connections: {str(e)}")
@@ -87,7 +117,68 @@ def home():
 
 @app.route('/dashboard')
 def dashboard():
-    return render_template('dashboard.html')
+    """
+    Render the dashboard page with statistics from the database.
+    """
+    try:
+        # Gather statistics for dashboard
+        from models import QueryLog, Document, Property, Assessment, Sale, Neighborhood
+        
+        # Query counts
+        total_queries = QueryLog.query.count()
+        error_count = QueryLog.query.filter_by(status="error").count()
+        
+        # Query types
+        query_types = {}
+        for q_type in ["general", "rag", "levy", "trends", "dbatools"]:
+            query_types[q_type] = QueryLog.query.filter_by(query_type=q_type).count()
+            
+        # Average response time
+        avg_time = db.session.query(db.func.avg(QueryLog.response_time)).scalar() or 0
+        
+        # Document count
+        document_count = Document.query.count()
+        
+        # Property counts
+        property_count = Property.query.count()
+        assessment_count = Assessment.query.count()
+        sale_count = Sale.query.count()
+        neighborhood_count = Neighborhood.query.count()
+        
+        # Recent errors
+        recent_errors = QueryLog.query.filter_by(status="error").order_by(
+            QueryLog.timestamp.desc()
+        ).limit(5).all()
+        
+        errors = []
+        for err in recent_errors:
+            errors.append({
+                "query": err.query_text[:100] + "..." if len(err.query_text) > 100 else err.query_text,
+                "error": err.error_message[:100] + "..." if len(err.error_message) > 100 else err.error_message,
+                "timestamp": err.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "type": err.query_type
+            })
+        
+        # Pass data to template
+        dashboard_data = {
+            "total_queries": total_queries,
+            "error_count": error_count,
+            "query_types": query_types,
+            "avg_time": round(avg_time, 2),
+            "document_count": document_count,
+            "property_count": property_count,
+            "assessment_count": assessment_count,
+            "sale_count": sale_count,
+            "neighborhood_count": neighborhood_count,
+            "recent_errors": errors
+        }
+        
+        return render_template('dashboard.html', data=dashboard_data)
+        
+    except Exception as e:
+        logger.error(f"Error rendering dashboard: {str(e)}")
+        # If there's an error, still render the dashboard but without data
+        return render_template('dashboard.html', data=None)
 
 @app.route('/api/query', methods=['POST'])
 def process_query():
@@ -145,13 +236,13 @@ def process_query():
         elif query_type == 'rag':
             # RAG query
             if not qa_chain:
-                return jsonify({"error": "Vector store not initialized"}), 500
+                return jsonify({"error": "Document retrieval system not initialized"}), 500
                 
             chat_history = session.get('chat_history', [])
-            result = qa_chain({
-                "question": query_text,
-                "chat_history": chat_history
-            })
+            result = qa_chain(
+                question=query_text,
+                chat_history=chat_history
+            )
             
             # Update chat history
             response_text = result["answer"]
@@ -213,6 +304,75 @@ def process_query():
 def reset_chat():
     session['chat_history'] = []
     return jsonify({"status": "success"})
+
+@app.route('/api/ingest_document', methods=['POST'])
+def ingest_document():
+    """API endpoint to ingest a document from a URL."""
+    if not db:
+        return jsonify({"error": "Database not initialized"}), 500
+        
+    data = request.get_json()
+    url = data.get('url')
+    title = data.get('title')
+    doc_type = data.get('type', 'webpage')
+    description = data.get('description')
+    
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+        
+    logger.info(f"Ingesting document from URL: {url}")
+    
+    try:
+        # Process document from URL
+        from utils.document_processor import process_document_from_url
+        document = process_document_from_url(
+            url=url,
+            title=title,
+            document_type=doc_type,
+            description=description
+        )
+        
+        if not document:
+            return jsonify({"error": "Failed to process document"}), 500
+            
+        logger.info(f"Document ingested successfully: {document.title} (ID: {document.id})")
+        return jsonify({
+            "status": "success",
+            "document_id": document.id,
+            "title": document.title
+        })
+        
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Error ingesting document: {error_message}")
+        return jsonify({"error": error_message}), 500
+
+@app.route('/api/documents', methods=['GET'])
+def list_documents():
+    """API endpoint to list all ingested documents."""
+    if not db:
+        return jsonify({"error": "Database not initialized"}), 500
+        
+    try:
+        from models import Document
+        documents = Document.query.order_by(Document.updated_at.desc()).all()
+        
+        results = []
+        for doc in documents:
+            results.append({
+                "id": doc.id,
+                "title": doc.title,
+                "type": doc.document_type,
+                "published_date": doc.published_date.isoformat() if doc.published_date else None,
+                "source_url": doc.source_url
+            })
+            
+        return jsonify({"documents": results})
+        
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Error listing documents: {error_message}")
+        return jsonify({"error": error_message}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
