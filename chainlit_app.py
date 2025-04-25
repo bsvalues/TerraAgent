@@ -93,7 +93,7 @@ async def handle(message: cl.Message):
     QUERY_COUNTER.inc()
     
     # Send thinking message
-    thinking = cl.Message(content="Thinking...", author="PACS Assistant")
+    thinking = cl.Message(content="Thinking...", author="Agent Smith")
     await thinking.send()
     
     try:
