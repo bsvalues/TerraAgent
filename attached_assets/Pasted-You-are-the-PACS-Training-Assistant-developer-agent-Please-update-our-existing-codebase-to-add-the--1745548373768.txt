@@ -1,0 +1,39 @@
+You are the PACS-Training Assistant developer agent. Please update our existing codebase to add the following features:
+
+1. **Windows Authentication (Kerberos/AD)**  
+   - Remove plain user/pass from .env.  
+   - Change the SQL connection to use Integrated Security:  
+     ```
+     mssql+pyodbc://<HOST>/<DB>?driver=ODBC+Driver+18+for+SQL+Server;Trusted_Connection=yes;Authentication=ActiveDirectoryIntegrated
+     ```  
+   - Ensure fallback logging if AD kerberos fails.
+
+2. **dbatools.ai Integration**  
+   - Install the PowerShell module `dbatools.ai`.  
+   - Create a Python wrapper function `run_dbatools(command: str)` that calls PowerShell subprocesses to run dbatools.ai commands.  
+   - Expose that wrapper as a LangChain tool named `"dbatools"` so users can do:  
+     > “List largest tables in pacs_training”  
+   - Write unit tests for this tool.
+
+3. **Monitoring & Alerting**  
+   - Add structured logging via Python’s `logging` to record every SQL query and any exceptions to `assistant.log`.  
+   - Integrate Prometheus metrics:  
+     - Create a counter `pacs_queries_total` and wrap every `agent.run()` call with `QUERY_COUNTER.inc()`.  
+     - Spin up a `/metrics` endpoint on port 8001.  
+   - Document how to ship logs to Azure Monitor or hook Alertmanager for errors.
+
+4. **Custom Chains**  
+   - **Levy Calculation Chain**  
+     - Build an `LLMChain` that accepts a `parcel_record` dict, `tax_rate`, and `exemptions`.  
+     - Returns a detailed breakdown of tax due.  
+   - **Neighborhood Trend Chain**  
+     - Ingest recent sales data into your vector store with metadata (sale_date, price, precinct).  
+     - Create a retrieval→Python→LLM chain that computes year-over-year % change for a given area.  
+   - Register both of these as named tools (`"levy_calc"`, `"trend_analysis"`).
+
+For each feature:  
+- Modify code files under `src/` accordingly.  
+- Write or update any `.env.example`, docs, and tests.  
+- Commit each logical change as its own Git commit with a descriptive message.
+
+At the end, provide me with a short summary of what you’ve implemented and any manual steps remaining (e.g., AD service account setup, Prometheus config).  

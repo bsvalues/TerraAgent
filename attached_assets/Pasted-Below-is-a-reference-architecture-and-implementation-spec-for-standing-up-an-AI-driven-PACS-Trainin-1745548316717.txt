@@ -1,0 +1,324 @@
+Below is a reference architecture and implementation spec for standing up an AI-driven “PACS-Training” assistant against your `jcharrispacs` SQL Server instance (database: `pacs_training`). We’ll build on the LangChain SQL Server samples and show how to:
+
+- Translate natural-language ↔ SQL for ad-hoc queries  
+- Run a Retrieval-Augmented Generation (RAG) chain over historical CAMA reports  
+- Expose an interactive chat UI via Chainlit  
+
+---
+
+## 1. Architecture Overview
+
+1. **NL2SQL Agent**  
+   - Uses LangChain’s `SQLDatabaseChain` to convert free-form prompts into SQL against `pacs_training` and return results.  
+   - Ideal for one-off, exploratory queries (e.g. “Show me all vacant parcels in zone 5 with AV > \$200 K”).  ([Azure-Samples/azure-sql-langchain - GitHub](https://github.com/Azure-Samples/azure-sql-langchain?utm_source=chatgpt.com), [NL2SQL with LangChain and Azure SQL Database](https://devblogs.microsoft.com/azure-sql/nl2sql-with-langchain-and-azure-sql-database/?utm_source=chatgpt.com))
+
+2. **RAG Pipeline**  
+   - Ingest key CAMA documents or report tables into SQL Server as a vector store (via the `langchain_sqlserver` connector).  
+   - On query, retrieve top-k most relevant report snippets before generating an answer.  ([Azure-Samples/azure-sql-langchain - GitHub](https://github.com/Azure-Samples/azure-sql-langchain?utm_source=chatgpt.com), [Azure-Samples/azure-sql-db-rag-langchain-chainlit - GitHub](https://github.com/Azure-Samples/azure-sql-db-rag-langchain-chainlit?utm_source=chatgpt.com))
+
+3. **Chat UI (Chainlit)**  
+   - Wraps the RAG pipeline in an interactive web chat so assessors can ask follow-up questions.  ([Azure-Samples/azure-sql-db-rag-langchain-chainlit - GitHub](https://github.com/Azure-Samples/azure-sql-db-rag-langchain-chainlit?utm_source=chatgpt.com))
+
+---
+
+## 2. Prerequisites
+
+- **Python 3.10+**  
+- **SQL Server ODBC Driver 18+** (Windows/Linux)  
+- A running **jcharrispacs** server with database **pacs_training** accessible from the host running this code  
+- **OpenAI API Key** (or Azure OpenAI endpoint + key)  
+
+---
+
+## 3. Installation
+
+```bash
+git clone https://github.com/Azure-Samples/azure-sql-langchain.git
+cd azure-sql-langchain
+
+# Create virtual env
+python -m venv .venv && source .venv/bin/activate
+
+# Install dependencies
+pip install langchain langchain_sqlserver openai python-dotenv pyodbc chainlit
+```
+---
+
+## 4. Configuration
+
+Create a `.env` file (modeled on `.env.example`) in your project root:
+
+```dotenv
+# SQL Server connection
+PACS_DB_USER=your_sql_username
+PACS_DB_PASS=your_sql_password
+PACS_DB_HOST=jcharrispacs.example.local   # or IP
+PACS_DB_NAME=pacs_training
+
+# OpenAI or Azure OpenAI
+OPENAI_API_KEY=sk-...
+# If using Azure OpenAI:
+# AZURE_OPENAI_API_KEY=...
+# AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+```
+---
+
+## 5. NL2SQL Agent Script
+
+Create `pacs_agent.py`:
+
+```python
+import os
+from langchain import OpenAI
+from langchain_sqlserver import SQLDatabase, SQLDatabaseChain
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# 1. Build connection string
+conn_str = (
+    f"mssql+pyodbc://{os.getenv('PACS_DB_USER')}:"
+    f"{os.getenv('PACS_DB_PASS')}@"
+    f"{os.getenv('PACS_DB_HOST')}/{os.getenv('PACS_DB_NAME')}?"
+    "driver=ODBC+Driver+18+for+SQL+Server"
+)
+
+# 2. Initialize LangChain SQLDatabase
+db = SQLDatabase.from_uri(conn_str)
+
+# 3. Create an NL2SQL chain
+llm = OpenAI(temperature=0)
+agent = SQLDatabaseChain.from_llm(llm, db, verbose=True)
+
+if __name__ == "__main__":
+    while True:
+        query = input("\nAsk PACS-Training DB> ")
+        if query.lower() in ("exit", "quit"):
+            break
+        result = agent.run(query)
+        print("\n", result)
+```
+
+**Run:**  
+```bash
+python pacs_agent.py
+```  
+_Try:_  
+> “List all properties in precinct 12 sold after 2022 with land value > \$50K.”
+
+---
+
+## 6. RAG Pipeline
+
+1. **Ingestion**  
+   - Extract CAMA narrative tables or PDF-exported reports into a staging table (e.g. `cama_reports`).  
+   - Use a script like `test-1.py` in the LangChain samples to upsert embeddings + metadata into SQL Server’s vector-enabled table  ([Azure-Samples/azure-sql-langchain - GitHub](https://github.com/Azure-Samples/azure-sql-langchain?utm_source=chatgpt.com)).
+
+2. **Query + Retrieval**  
+   ```python
+   from langchain_sqlserver.vector import SQLVectorStore
+   from langchain.chains import RetrievalQA
+   from langchain.embeddings import OpenAIEmbeddings
+   
+   # init vector store on the same conn_str
+   vs = SQLVectorStore.from_uri(
+       conn_str,
+       table_name="cama_vectors",
+       embedding=OpenAIEmbeddings()
+   )
+   
+   qa = RetrievalQA.from_chain_type(
+       llm=OpenAI(),
+       chain_type="map_reduce",
+       retriever=vs.as_retriever(k=5),
+       verbose=True
+   )
+   
+   print(qa.run("Summarize the condition issues noted in the 2023 reports for parcel A12345"))
+   ```
+
+---
+
+## 7. Chainlit Chat UI
+
+Create `chainlit_app.py`:
+
+```python
+# chainlit_app.py
+import os
+from chainlit import main, user, run
+from langchain import OpenAI
+from langchain_sqlserver import SQLDatabase
+from langchain_sqlserver.vector import SQLVectorStore
+from langchain.chains import ConversationalRetrievalChain
+from langchain.embeddings import OpenAIEmbeddings
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Setup DB + vector store as above
+conn_str = (
+    f"mssql+pyodbc://{os.getenv('PACS_DB_USER')}:"
+    f"{os.getenv('PACS_DB_PASS')}@"
+    f"{os.getenv('PACS_DB_HOST')}/{os.getenv('PACS_DB_NAME')}?"
+    "driver=ODBC+Driver+18+for+SQL+Server"
+)
+vs = SQLVectorStore.from_uri(conn_str, table_name="cama_vectors",
+                              embedding=OpenAIEmbeddings())
+qa_chain = ConversationalRetrievalChain.from_llm(
+    OpenAI(temperature=0),
+    vs.as_retriever(k=4)
+)
+
+@main
+async def run_chat():
+    await user.send("Welcome to PACS-Training Assistant! Ask me anything about CAMA data.")
+
+@run.on_message
+async def handle(msg):
+    resp = qa_chain({"question": msg.content})
+    await user.send(resp["answer"])
+```
+
+**Run:**  
+```bash
+chainlit run chainlit_app.py
+```
+_Open your browser at_ http://localhost:8000.
+
+---
+
+## 8. Next Steps
+
+- **Security**: Integrate Windows Authentication (Kerberos/AD) instead of user/pass in `.env`.  
+- **Advanced Tools**: Hook in `dbatools.ai` for DBA-style scripting via PowerShell prompts.  
+- **Monitoring**: Add logging, usage metrics, and error alerts (e.g. via Azure Monitor or Prometheus).  
+- **Custom Chains**: Build specialized chains for levy calculations, neighborhood trend analyses, etc.
+
+This spec should get you up and running with an AI-powered assistant tailored to your `jcharrispacs`/`pacs_training` CAMA system.,   Here’s a more detailed action plan for each of your Next Steps:
+
+---
+
+## 1. Security: Windows Authentication (Kerberos/AD)
+
+1. **Enable “Trusted Connection” in your ODBC string**  
+   Replace the username/password URI with one that uses integrated security:  
+   ```python
+   conn_str = (
+       "mssql+pyodbc://"
+       f"{os.getenv('PACS_DB_HOST')}/{os.getenv('PACS_DB_NAME')}?"
+       "driver=ODBC+Driver+18+for+SQL+Server;"
+       "Trusted_Connection=yes;"
+       "Authentication=ActiveDirectoryIntegrated"
+   )
+   ```
+2. **Service Principal / Managed Identity**  
+   - If you’re running in Azure VMs or App Services, assign a Managed Identity and use `Authentication=ActiveDirectoryMsi`.  
+   - No secrets in `.env`—the OS handles Kerberos ticketing for you.
+3. **AD Service Account**  
+   - Create a low-privilege AD account for the assistant, grant it only the necessary `SELECT` (and maybe `EXECUTE`) rights on `pacs_training`.
+4. **Testing & Fallback**  
+   - Test locally (you’ll need a Kerberos ticket: `kinit` / `klist`).  
+   - Fall back to user/pass only if Kerberos fails, logging a warning.
+
+---
+
+## 2. Advanced Tools: Integrate dbatools.ai
+
+1. **Install dbatools.ai**  
+   ```powershell
+   Install-Module dbatools.ai -Scope CurrentUser
+   ```
+2. **Expose as a subprocess in Python**  
+   ```python
+   import subprocess, shlex
+
+   def run_dbatools(command: str):
+       ps_command = f"pwsh -Command \"Import-Module dbatools.ai; {command}\""
+       proc = subprocess.run(shlex.split(ps_command),
+                             capture_output=True, text=True)
+       return proc.stdout or proc.stderr
+
+   # Example: List all databases
+   print(run_dbatools("Get-DbaDatabase -SqlInstance jcharrispacs"))
+   ```
+3. **Embed in your Chain**  
+   - Create a custom LangChain tool that wraps `run_dbatools()`.  
+   - Register it so the agent can invoke commands like:  
+     > “Show me the top 10 largest tables in pacs_training.”
+
+---
+
+## 3. Monitoring & Alerting
+
+1. **Structured Logging**  
+   ```python
+   import logging
+
+   logger = logging.getLogger("pacs_assistant")
+   handler = logging.FileHandler("assistant.log")
+   formatter = logging.Formatter(
+       "%(asctime)s %(levelname)s %(name)s %(message)s")
+   handler.setFormatter(formatter)
+   logger.addHandler(handler)
+   logger.setLevel(logging.INFO)
+   ```
+2. **Prometheus Metrics**  
+   ```python
+   from prometheus_client import start_http_server, Counter
+
+   QUERY_COUNTER = Counter("pacs_queries_total",
+                           "Total number of SQL queries run")
+
+   def record_query():
+       QUERY_COUNTER.inc()
+
+   if __name__ == "__main__":
+       start_http_server(8001)  # /metrics endpoint
+       # wrap your agent.run() calls with record_query()
+   ```
+3. **Error Alerts**  
+   - **Azure Monitor**:  
+     - Ship your logs to an Azure Log Analytics workspace.  
+     - Create alert rules on “Exception” entries.  
+   - **Prometheus → Alertmanager**:  
+     - Define a PromQL alert (e.g. `rate(app_exceptions_total[5m]) > 0`).  
+     - Configure Alertmanager to send you email/Teams notifications.
+
+---
+
+## 4. Custom Chains
+
+1. **Levy Calculation Chain**  
+   ```python
+   from langchain import PromptTemplate, LLMChain
+
+   template = """
+   You are an expert county assessor. Given this parcel record:
+     {parcel_record}
+   And these levy parameters:
+     tax_rate = {tax_rate}
+     exemptions = {exemptions}
+   Calculate the total tax due, with breakdown.
+   """
+   levy_prompt = PromptTemplate(
+       input_variables=["parcel_record", "tax_rate", "exemptions"],
+       template=template
+   )
+
+   levy_chain = LLMChain(llm=OpenAI(temperature=0), prompt=levy_prompt)
+   ```
+   - Feed in a Python dict of parcel data (from your NL2SQL agent) and get a breakdown.
+
+2. **Neighborhood Trend Retrieval Chain**  
+   - **Ingestion**: Load recent sales into a vector store with metadata (sale date, price, location).  
+   - **Prompt**: “What has been the average year-over-year increase for single-family homes in precinct 7 over the last 5 years?”  
+   - **Chain**: Retrieval → Data-Loader → Python function to compute `% Δ` → LLM to summarize.
+
+3. **Putting It Together**  
+   - Register both chains as separate tools in your agent’s toolkit.  
+   - Let the user switch between “General Query,” “Levy Calc,” and “Trend Analysis” modes.
+
+---
+
+With these enhancements, your PACS-Training Assistant will be secure, powerful, and production-ready—able to serve both day-to-day queries and deep analytical workflows.   This will need to be packaged and easliy deployed locally on the jcharrispacs server
