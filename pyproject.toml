@@ -19,4 +19,5 @@ dependencies = [
     "chainlit>=2.5.5",
     "dotenv>=0.9.9",
     "langchain-core>=0.3.56",
+    "trafilatura>=2.0.0",
 ]
