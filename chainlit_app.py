@@ -64,7 +64,7 @@ async def start():
     """Initialize the chat session"""
     # Send a welcome message
     await cl.Message(
-        content="Welcome to PACS-Training Assistant! Ask me anything about CAMA data, levy calculations, or database information.",
+        content="Hello, I'm Agent Smith from TerraAgent. Ask me anything about property assessment, CAMA data, levy calculations, or database information.",
     ).send()
     
     # Create a new chat history for this session

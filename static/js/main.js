@@ -1,4 +1,4 @@
-// Main JavaScript for PACS-Training Assistant
+// Main JavaScript for TerraAgent
 
 // DOM Elements
 let chatContainer, messageInput, sendButton, queryTypeSelect;
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Add welcome message
-    addMessage('Welcome to PACS-Training Assistant! Ask me anything about CAMA data, levy calculations, or database information.', 'assistant');
+    addMessage('Hello, I\'m Agent Smith from TerraAgent. Ask me anything about property assessment, CAMA data, levy calculations, or database information.', 'assistant');
 });
 
 // Send message to backend
@@ -165,7 +165,7 @@ function resetChat() {
     .then(response => response.json())
     .then(data => {
         // Add welcome message
-        addMessage('Chat history has been reset. How can I help you today?', 'assistant');
+        addMessage('Chat history has been reset. I\'m Agent Smith - how can I assist with your property assessment needs today?', 'assistant');
     })
     .catch(error => {
         console.error('Error resetting chat:', error);
