@@ -1,6 +1,7 @@
 import os
 import logging
 from langchain_openai import OpenAI
+from langchain_openai import ChatOpenAI
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain.chains import SQLDatabaseChain
 from langchain_community.agent_toolkits.sql.base import create_sql_agent
@@ -14,45 +15,74 @@ load_dotenv()
 # Get logger
 logger = logging.getLogger("pacs_assistant")
 
-# Build connection string using Windows Authentication
+# Get PostgreSQL connection string
 try:
     conn_str = get_sql_connection_string()
-    logger.info("Using Windows Authentication for database connection")
+    logger.info("PostgreSQL connection string obtained successfully")
 except Exception as e:
-    logger.error(f"Windows Authentication failed: {str(e)}")
-    # Fallback to basic authentication if provided in environment
-    if all(os.getenv(var) for var in ["PACS_DB_USER", "PACS_DB_PASS", "PACS_DB_HOST", "PACS_DB_NAME"]):
-        conn_str = (
-            f"mssql+pyodbc://{os.getenv('PACS_DB_USER')}:"
-            f"{os.getenv('PACS_DB_PASS')}@"
-            f"{os.getenv('PACS_DB_HOST')}/{os.getenv('PACS_DB_NAME')}?"
-            "driver=ODBC+Driver+18+for+SQL+Server"
-        )
-        logger.warning("Falling back to basic authentication")
-    else:
-        logger.critical("Authentication failed and no fallback credentials available")
-        raise Exception("Cannot connect to database: Authentication failed")
+    logger.critical(f"Failed to get database connection string: {str(e)}")
+    raise Exception(f"Cannot connect to database: {str(e)}")
 
 # Initialize LangChain SQLDatabase
 try:
-    db = SQLDatabase.from_uri(conn_str)
+    db = SQLDatabase.from_uri(
+        conn_str,
+        include_tables=['properties', 'assessments', 'sales', 'neighborhoods', 'documents', 'query_logs'],
+        sample_rows_in_table_info=3
+    )
     logger.info("Database connection established")
 except Exception as e:
     logger.critical(f"Failed to initialize database: {str(e)}")
     raise
 
-# Initialize LLM
-llm = OpenAI(temperature=0)
+# Check for OpenAI API key
+if not os.getenv("OPENAI_API_KEY"):
+    logger.critical("OpenAI API key not found in environment variables")
+    raise ValueError("OPENAI_API_KEY environment variable is required")
+
+# Initialize the newest OpenAI model
+# the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+# do not change this unless explicitly requested by the user
+llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0
+)
 
 # Create an advanced SQL agent with toolkit
-toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+toolkit = SQLDatabaseToolkit(
+    db=db, 
+    llm=llm
+)
+
+# Custom system prompt for CAMA-specific queries
+cama_system_prompt = """You are Agent Smith, an AI assistant for TerraAgent, a property tax and valuation analysis system that works with Computer-Assisted Mass Appraisal (CAMA) data.
+
+Your primary role is to help users access and analyze property data by translating natural language questions into SQL queries, and then presenting the results in a clear, readable format.
+
+Common tables you'll work with:
+- properties: Contains parcel_id, address, property class, etc.
+- assessments: Contains assessment values and tax information
+- sales: Contains property sale transaction data
+- neighborhoods: Contains area statistics and trends
+
+When answering questions:
+1. Think about which tables contain the relevant data
+2. Join tables as needed for comprehensive information
+3. Format responses with proper headings and readable numbers
+4. For financial values, include dollar signs and commas
+5. Provide concise summaries of aggregate data
+
+Remember, you are the interface to the TerraAgent database, so make the information accessible and actionable.
+"""
 
 # Create the agent with a custom prompt
 agent = create_sql_agent(
     llm=llm,
     toolkit=toolkit,
     verbose=True,
-    top_k=10,  # Return more examples to help with complex queries
+    agent_type="openai-tools",
+    top_k=3,  # Return examples to help with complex queries
+    system_message=cama_system_prompt
 )
 
 def run_sql_query(query_text):
@@ -69,7 +99,7 @@ def run_sql_query(query_text):
     
     try:
         # Increment query counter for monitoring
-        QUERY_COUNTER.inc()
+        QUERY_COUNTER.labels(query_type="general").inc()
         
         # Run the query through the agent
         result = agent.run(query_text)
