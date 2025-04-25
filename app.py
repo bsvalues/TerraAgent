@@ -8,6 +8,8 @@ from chains.levy_calculator import create_levy_chain
 from chains.neighborhood_trends import create_neighborhood_trend_chain
 from langchain_openai import OpenAI
 from langchain_community.utilities.sql_database import SQLDatabase
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
 from dotenv import load_dotenv
 from prometheus_client import start_http_server
 import threading
@@ -22,14 +24,34 @@ logger = setup_logging()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "default-secret-key")
 
+# Configure SQLAlchemy
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Initialize flask-sqlalchemy extension
+class Base(DeclarativeBase):
+    pass
+
+db = SQLAlchemy(model_class=Base)
+db.init_app(app)
+
 # Initialize database connections and chains
 try:
-    # Get connection string with Windows Authentication
+    # Get connection string from utils/auth.py
     conn_str = get_sql_connection_string()
-    logger.info("Using Windows Authentication for database connection")
     
-    # Initialize SQL Database
-    db = SQLDatabase.from_uri(conn_str)
+    # Initialize LangChain SQL Database
+    langchain_db = SQLDatabase.from_uri(conn_str)
+    
+    # Create database tables based on models.py
+    with app.app_context():
+        import models
+        db.create_all()
+        logger.info("Database tables created successfully")
     
     # Vector store functionality is not available in this version
     logger.warning("Vector store functionality is currently disabled")
@@ -46,7 +68,7 @@ try:
     
 except Exception as e:
     logger.critical(f"Failed to initialize database connections: {str(e)}")
-    db = None
+    langchain_db = None
     vs = None
     qa_chain = None
     levy_chain = None
@@ -69,7 +91,7 @@ def dashboard():
 
 @app.route('/api/query', methods=['POST'])
 def process_query():
-    if not db:
+    if not langchain_db:
         return jsonify({"error": "Database connection not initialized"}), 500
     
     data = request.get_json()
@@ -80,7 +102,18 @@ def process_query():
         return jsonify({"error": "No query provided"}), 400
     
     logger.info(f"Processing {query_type} query: {query_text}")
-    QUERY_COUNTER.inc()
+    QUERY_COUNTER.labels(query_type=query_type).inc()
+    
+    # Log the query for analytics
+    from models import QueryLog
+    query_log = QueryLog(
+        query_text=query_text,
+        query_type=query_type
+    )
+    
+    start_time = None
+    import time
+    start_time = time.time()
     
     try:
         if query_type == 'levy':
@@ -94,17 +127,20 @@ def process_query():
                 "tax_rate": tax_rate,
                 "exemptions": exemptions
             })
-            return jsonify({"result": result["text"]})
+            response_text = result["text"]
+            return jsonify({"result": response_text})
         
         elif query_type == 'trends':
             # Neighborhood trends query
             result = trends_chain({"question": query_text})
-            return jsonify({"result": result["answer"]})
+            response_text = result["answer"]
+            return jsonify({"result": response_text})
         
         elif query_type == 'dbatools':
             # dbatools query
             result = run_dbatools(query_text)
-            return jsonify({"result": result})
+            response_text = result
+            return jsonify({"result": response_text})
         
         elif query_type == 'rag':
             # RAG query
@@ -118,21 +154,60 @@ def process_query():
             })
             
             # Update chat history
-            chat_history.append((query_text, result["answer"]))
+            response_text = result["answer"]
+            chat_history.append((query_text, response_text))
             session['chat_history'] = chat_history
             
-            return jsonify({"result": result["answer"]})
+            return jsonify({"result": response_text})
         
         else:
             # General SQL query
-            from pacs_agent import agent
-            result = agent.run(query_text)
-            return jsonify({"result": result})
+            try:
+                # Try using the SQL agent from pacs_agent.py
+                from pacs_agent import agent
+                result = agent.run(query_text)
+                response_text = result
+            except ImportError:
+                # Fallback to direct SQL execution if agent is not available
+                logger.warning("SQL agent not available, using direct SQL execution")
+                result = langchain_db.run(query_text)
+                response_text = result
+                
+            return jsonify({"result": response_text})
     
     except Exception as e:
         error_message = str(e)
         logger.error(f"Error processing query: {error_message}")
+        
+        # Log the error
+        if query_log:
+            query_log.status = "error"
+            query_log.error_message = error_message
+            
         return jsonify({"error": error_message}), 500
+        
+    finally:
+        # Calculate and record response time
+        if start_time and query_log:
+            end_time = time.time()
+            query_log.response_time = end_time - start_time
+            
+            # Set status to success if not already set to error
+            if not hasattr(query_log, 'status') or not query_log.status:
+                query_log.status = "success"
+                
+            # Set response text if available
+            if 'response_text' in locals():
+                query_log.response_text = response_text
+                
+            # Save query log to database
+            with app.app_context():
+                db.session.add(query_log)
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    logger.error(f"Error saving query log: {str(e)}")
+                    db.session.rollback()
 
 @app.route('/api/reset_chat', methods=['POST'])
 def reset_chat():
