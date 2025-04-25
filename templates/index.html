@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PACS-Training Assistant</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/static/css/styles.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="fas fa-database me-2"></i>PACS-Training Assistant</h1>
+                    <p class="lead">AI-powered assistant for CAMA data analysis and queries</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="/dashboard" class="btn btn-outline-info">
+                        <i class="fas fa-chart-line me-1"></i> Dashboard
+                    </a>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main>
+            <div class="row">
+                <div class="col-lg-3">
+                    <!-- Query Type Selector -->
+                    <div class="card bg-dark mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-filter me-2"></i>Query Type</h5>
+                        </div>
+                        <div class="card-body">
+                            <select id="query-type" class="form-select">
+                                <option value="general" selected>General Query</option>
+                                <option value="rag">Document Search</option>
+                                <option value="levy">Levy Calculation</option>
+                                <option value="trends">Neighborhood Trends</option>
+                                <option value="dbatools">Database Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Help Panel -->
+                    <div class="card bg-dark mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-question-circle me-2"></i>Help</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>Example Queries:</h6>
+                            <ul class="small">
+                                <li>Show all parcels in precinct 12 with value > $200K</li>
+                                <li>Calculate levy for parcel A12345 with homestead exemption</li>
+                                <li>What's the average sale price trend in zone 5?</li>
+                                <li>List the largest tables in the database</li>
+                            </ul>
+                            <button class="btn btn-sm btn-outline-secondary w-100" id="reset-chat">
+                                <i class="fas fa-redo me-1"></i> Reset Chat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-9">
+                    <!-- Chat Container -->
+                    <div class="card bg-dark mb-3">
+                        <div class="card-header">
+                            <h5><i class="fas fa-comments me-2"></i>Chat</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="chat-container" class="chat-container"></div>
+                            
+                            <!-- Input Area -->
+                            <div class="input-area mt-3">
+                                <input type="text" id="message-input" class="form-control" 
+                                       placeholder="Type your question here...">
+                                <button id="send-button" class="btn btn-primary">
+                                    <span id="loading-indicator" class="spinner-border spinner-border-sm" role="status"></span>
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Footer -->
+        <footer class="footer">
+            <p>PACS-Training Assistant &copy; 2023 | Powered by LangChain + SQL Server</p>
+        </footer>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
