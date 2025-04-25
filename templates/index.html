@@ -48,6 +48,31 @@
                         </div>
                     </div>
                     
+                    <!-- Document Management -->
+                    <div class="card bg-dark mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-file-upload me-2"></i>Add Document</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="sidebar-document-form">
+                                <div class="mb-2">
+                                    <input type="url" class="form-control form-control-sm" id="sidebar-doc-url" 
+                                           placeholder="Document URL" required>
+                                </div>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" id="sidebar-doc-title" 
+                                           placeholder="Optional title">
+                                </div>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-plus-circle me-1"></i> Add to Knowledge Base
+                                    </button>
+                                </div>
+                            </form>
+                            <div id="sidebar-ingest-status" class="mt-2 d-none small"></div>
+                        </div>
+                    </div>
+                    
                     <!-- Help Panel -->
                     <div class="card bg-dark mb-4">
                         <div class="card-header">
@@ -60,6 +85,7 @@
                                 <li>Calculate levy for parcel A12345 with homestead exemption</li>
                                 <li>What's the average sale price trend in zone 5?</li>
                                 <li>List the largest tables in the database</li>
+                                <li>What does the recently added document say about assessments?</li>
                             </ul>
                             <button class="btn btn-sm btn-outline-secondary w-100" id="reset-chat">
                                 <i class="fas fa-redo me-1"></i> Reset Chat

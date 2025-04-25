@@ -175,6 +175,44 @@
                 <div class="col-md-6">
                     <div class="card bg-dark mb-4">
                         <div class="card-header">
+                            <h5><i class="fas fa-file-upload me-2"></i>Document Ingestion</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="documentForm">
+                                <div class="mb-3">
+                                    <label for="docUrl" class="form-label">URL</label>
+                                    <input type="url" class="form-control" id="docUrl" 
+                                           placeholder="https://example.com/document" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="docTitle" class="form-label">Title (Optional)</label>
+                                    <input type="text" class="form-control" id="docTitle" 
+                                           placeholder="Document Title">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="docType" class="form-label">Document Type</label>
+                                    <select class="form-select" id="docType">
+                                        <option value="webpage">Webpage</option>
+                                        <option value="report">Report</option>
+                                        <option value="regulation">Regulation</option>
+                                        <option value="manual">Manual</option>
+                                        <option value="memo">Memo</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="docDescription" class="form-label">Description (Optional)</label>
+                                    <textarea class="form-control" id="docDescription" rows="2"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Ingest Document</button>
+                            </form>
+                            <div id="ingestStatus" class="mt-3 d-none alert alert-info">
+                                Processing document...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-dark mb-4">
+                        <div class="card-header">
                             <h5><i class="fas fa-link me-2"></i>Resources</h5>
                         </div>
                         <div class="card-body">
@@ -182,14 +220,11 @@
                                 <a href="http://localhost:8001/metrics" class="list-group-item list-group-item-action bg-dark">
                                     <i class="fas fa-chart-bar me-2"></i>Prometheus Metrics
                                 </a>
-                                <a href="#" class="list-group-item list-group-item-action bg-dark">
-                                    <i class="fas fa-file-alt me-2"></i>View Logs
+                                <a href="/" class="list-group-item list-group-item-action bg-dark">
+                                    <i class="fas fa-robot me-2"></i>TerraAgent Chat
                                 </a>
-                                <a href="#" class="list-group-item list-group-item-action bg-dark">
-                                    <i class="fas fa-book me-2"></i>Documentation
-                                </a>
-                                <a href="#" class="list-group-item list-group-item-action bg-dark">
-                                    <i class="fas fa-cog me-2"></i>Configuration
+                                <a href="/api/documents" class="list-group-item list-group-item-action bg-dark">
+                                    <i class="fas fa-book me-2"></i>View Documents API
                                 </a>
                             </div>
                         </div>
@@ -207,57 +242,125 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Dashboard Charts -->
+    <!-- Dashboard Charts and Functionality -->
     <script>
-        // Sample data for charts - would be replaced with real data in production
         document.addEventListener('DOMContentLoaded', () => {
+            // Document Ingestion Form Handler
+            const documentForm = document.getElementById('documentForm');
+            const ingestStatus = document.getElementById('ingestStatus');
+            
+            if (documentForm) {
+                documentForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    // Get form values
+                    const url = document.getElementById('docUrl').value;
+                    const title = document.getElementById('docTitle').value;
+                    const docType = document.getElementById('docType').value;
+                    const description = document.getElementById('docDescription').value;
+                    
+                    // Show status
+                    ingestStatus.classList.remove('d-none', 'alert-success', 'alert-danger');
+                    ingestStatus.classList.add('alert-info');
+                    ingestStatus.textContent = 'Processing document...';
+                    
+                    try {
+                        // Send API request
+                        const response = await fetch('/api/ingest_document', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                url,
+                                title: title || null,
+                                type: docType,
+                                description: description || null
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            // Success
+                            ingestStatus.classList.remove('alert-info', 'alert-danger');
+                            ingestStatus.classList.add('alert-success');
+                            ingestStatus.textContent = `Document "${result.title}" ingested successfully!`;
+                            
+                            // Clear form
+                            documentForm.reset();
+                        } else {
+                            // Error
+                            ingestStatus.classList.remove('alert-info', 'alert-success');
+                            ingestStatus.classList.add('alert-danger');
+                            ingestStatus.textContent = `Error: ${result.error}`;
+                        }
+                    } catch (error) {
+                        // Network error
+                        ingestStatus.classList.remove('alert-info', 'alert-success');
+                        ingestStatus.classList.add('alert-danger');
+                        ingestStatus.textContent = `Network error: ${error.message}`;
+                    }
+                });
+            }
+            
             // Query Distribution Chart
-            const queryCtx = document.getElementById('queryChart').getContext('2d');
-            const queryChart = new Chart(queryCtx, {
-                type: 'pie',
-                data: {
-                    labels: ['General', 'Document Search', 'Levy Calc', 'Trends', 'DBA'],
-                    datasets: [{
-                        data: [20, 10, 15, 5, 8],
-                        backgroundColor: [
-                            '#0d6efd', '#6c757d', '#ffc107', '#198754', '#dc3545'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
+            const queryCtx = document.getElementById('queryChart')?.getContext('2d');
+            if (queryCtx) {
+                const queryChart = new Chart(queryCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['General', 'Document Search', 'Levy Calc', 'Trends', 'DBA'],
+                        datasets: [{
+                            data: [
+                                {{ data.query_types.general if data and data.query_types.general else 0 }},
+                                {{ data.query_types.rag if data and data.query_types.rag else 0 }},
+                                {{ data.query_types.levy if data and data.query_types.levy else 0 }},
+                                {{ data.query_types.trends if data and data.query_types.trends else 0 }},
+                                {{ data.query_types.dbatools if data and data.query_types.dbatools else 0 }}
+                            ],
+                            backgroundColor: [
+                                '#0d6efd', '#6c757d', '#ffc107', '#198754', '#dc3545'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
             
             // Response Time Chart
-            const timeCtx = document.getElementById('responseTimeChart').getContext('2d');
-            const timeChart = new Chart(timeCtx, {
-                type: 'line',
-                data: {
-                    labels: ['1h ago', '50m ago', '40m ago', '30m ago', '20m ago', '10m ago', 'Now'],
-                    datasets: [{
-                        label: 'Response Time (s)',
-                        data: [1.2, 0.8, 2.5, 1.7, 0.9, 1.5, 1.1],
-                        borderColor: '#0dcaf0',
-                        backgroundColor: 'rgba(13, 202, 240, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
+            const timeCtx = document.getElementById('responseTimeChart')?.getContext('2d');
+            if (timeCtx) {
+                const timeChart = new Chart(timeCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['1h ago', '50m ago', '40m ago', '30m ago', '20m ago', '10m ago', 'Now'],
+                        datasets: [{
+                            label: 'Response Time (s)',
+                            data: [1.2, 0.8, 2.5, 1.7, 0.9, 1.5, {{ data.avg_time if data else 1.1 }}],
+                            borderColor: '#0dcaf0',
+                            backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         });
     </script>
 </body>

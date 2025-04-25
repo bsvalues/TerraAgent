@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     resetChatButton = document.getElementById('reset-chat');
     loadingIndicator = document.getElementById('loading-indicator');
     
+    // Document ingestion elements
+    const sidebarDocForm = document.getElementById('sidebar-document-form');
+    const sidebarIngestStatus = document.getElementById('sidebar-ingest-status');
+    
     // Set up event listeners
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
@@ -26,13 +30,69 @@ document.addEventListener('DOMContentLoaded', () => {
         resetChatButton.addEventListener('click', resetChat);
     }
     
+    // Set up document ingestion form
+    if (sidebarDocForm) {
+        sidebarDocForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('sidebar-doc-url').value;
+            const title = document.getElementById('sidebar-doc-title').value;
+            
+            // Show status
+            sidebarIngestStatus.classList.remove('d-none', 'text-success', 'text-danger');
+            sidebarIngestStatus.classList.add('text-info');
+            sidebarIngestStatus.textContent = 'Processing document...';
+            
+            try {
+                // Send API request
+                const response = await fetch('/api/ingest_document', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url,
+                        title: title || null,
+                        type: 'webpage'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Success
+                    sidebarIngestStatus.classList.remove('text-info', 'text-danger');
+                    sidebarIngestStatus.classList.add('text-success');
+                    sidebarIngestStatus.textContent = `Document added successfully!`;
+                    
+                    // Add message to chat
+                    addMessage(`I've added a new document "${result.title}" to my knowledge base. You can now ask me questions about it!`, 'assistant');
+                    
+                    // Clear form
+                    sidebarDocForm.reset();
+                } else {
+                    // Error
+                    sidebarIngestStatus.classList.remove('text-info', 'text-success');
+                    sidebarIngestStatus.classList.add('text-danger');
+                    sidebarIngestStatus.textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                // Network error
+                sidebarIngestStatus.classList.remove('text-info', 'text-success');
+                sidebarIngestStatus.classList.add('text-danger');
+                sidebarIngestStatus.textContent = `Network error`;
+                console.error('Document ingestion error:', error);
+            }
+        });
+    }
+    
     // Hide loading indicator initially
     if (loadingIndicator) {
         loadingIndicator.style.display = 'none';
     }
     
     // Add welcome message
-    addMessage('Hello, I\'m Agent Smith from TerraAgent. Ask me anything about property assessment, CAMA data, levy calculations, or database information.', 'assistant');
+    addMessage('Hello, I\'m Agent Smith from TerraAgent. Ask me anything about property assessment, CAMA data, levy calculations, or database information. You can also add documents to my knowledge base using the form in the sidebar.', 'assistant');
 });
 
 // Send message to backend

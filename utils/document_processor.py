@@ -1,10 +1,9 @@
 import os
 import logging
-from datetime import datetime
-import hashlib
+import datetime
+from models import Document, db
+from app import app
 import trafilatura
-from models import Document
-from app import db
 
 # Get logger
 logger = logging.getLogger("pacs_assistant")
@@ -20,26 +19,26 @@ def extract_text_from_url(url):
         str: Extracted text content
     """
     try:
-        logger.info(f"Extracting content from URL: {url}")
+        # Send a request to the website
         downloaded = trafilatura.fetch_url(url)
         
         if not downloaded:
             logger.error(f"Failed to download content from URL: {url}")
             return None
             
+        # Extract main content
         text = trafilatura.extract(downloaded)
         
         if not text:
-            logger.warning(f"No meaningful text extracted from URL: {url}")
+            logger.warning(f"No content extracted from URL: {url}")
             return None
             
-        logger.info(f"Successfully extracted content from URL: {url}")
+        logger.info(f"Successfully extracted {len(text)} characters from URL: {url}")
         return text
         
     except Exception as e:
-        logger.error(f"Error extracting content from URL {url}: {str(e)}")
+        logger.error(f"Error extracting text from URL: {str(e)}")
         return None
-
 
 def process_document(title, content, document_type="webpage", source_url=None, description=None):
     """
@@ -56,32 +55,43 @@ def process_document(title, content, document_type="webpage", source_url=None, d
         Document: Created document object
     """
     try:
-        # Generate a unique vector ID based on content
-        vector_id = hashlib.md5(content.encode()).hexdigest()
-        
-        # Create a new document record
-        document = Document(
-            title=title,
-            content=content,
-            description=description or f"Document extracted from {document_type}",
-            document_type=document_type,
-            source_url=source_url,
-            published_date=datetime.utcnow(),
-            vector_id=vector_id
-        )
-        
-        # Store in database
-        db.session.add(document)
-        db.session.commit()
-        
-        logger.info(f"Document stored in database: {title} (ID: {document.id})")
-        return document
-        
+        # Create document entry
+        with app.app_context():
+            # Check if document with same source_url already exists
+            if source_url:
+                existing_doc = Document.query.filter_by(source_url=source_url).first()
+                if existing_doc:
+                    logger.info(f"Updating existing document from {source_url}")
+                    # Update existing document
+                    existing_doc.title = title
+                    existing_doc.content = content
+                    existing_doc.description = description
+                    existing_doc.document_type = document_type
+                    existing_doc.updated_at = datetime.datetime.utcnow()
+                    db.session.commit()
+                    return existing_doc
+            
+            # Create new document
+            document = Document(
+                title=title,
+                content=content,
+                document_type=document_type,
+                source_url=source_url,
+                description=description,
+                published_date=datetime.datetime.utcnow(),
+                created_at=datetime.datetime.utcnow(),
+                updated_at=datetime.datetime.utcnow()
+            )
+            
+            db.session.add(document)
+            db.session.commit()
+            
+            logger.info(f"Document stored in database: {title} (ID: {document.id})")
+            return document
+            
     except Exception as e:
-        logger.error(f"Error storing document {title}: {str(e)}")
-        db.session.rollback()
-        raise
-
+        logger.error(f"Error processing document: {str(e)}")
+        return None
 
 def process_document_from_url(url, title=None, document_type="webpage", description=None):
     """
@@ -97,27 +107,30 @@ def process_document_from_url(url, title=None, document_type="webpage", descript
         Document: Created document object or None if processing failed
     """
     try:
-        # Extract content from the URL
+        # Extract content from URL
         content = extract_text_from_url(url)
         
         if not content:
             logger.error(f"No content extracted from URL: {url}")
             return None
             
-        # Use URL as title if none provided
+        # If no title provided, try to extract from URL
         if not title:
-            # Try to extract title from content, or use URL
-            try:
-                # Take first line as title if it's reasonably short
-                first_line = content.split('\n')[0].strip()
-                if 10 <= len(first_line) <= 100:
-                    title = first_line
-                else:
-                    title = url.split('/')[-1] or url
-            except:
-                title = url
-        
-        # Process the document
+            # Try to get title from URL
+            import urllib.parse
+            parsed_url = urllib.parse.urlparse(url)
+            domain = parsed_url.netloc
+            path = parsed_url.path
+            
+            if path and path != "/":
+                # Use the last part of the path as title
+                path_parts = path.rstrip("/").split("/")
+                title_candidate = path_parts[-1].replace("-", " ").replace("_", " ").title()
+                title = f"{title_candidate} - {domain}"
+            else:
+                title = f"Document from {domain}"
+                
+        # Process document
         document = process_document(
             title=title,
             content=content,
@@ -129,9 +142,8 @@ def process_document_from_url(url, title=None, document_type="webpage", descript
         return document
         
     except Exception as e:
-        logger.error(f"Error processing document from URL {url}: {str(e)}")
+        logger.error(f"Error processing document from URL: {str(e)}")
         return None
-
 
 def get_document_by_id(document_id):
     """
@@ -144,11 +156,12 @@ def get_document_by_id(document_id):
         Document: Document object or None if not found
     """
     try:
-        return Document.query.get(document_id)
+        with app.app_context():
+            document = Document.query.get(document_id)
+            return document
     except Exception as e:
-        logger.error(f"Error retrieving document ID {document_id}: {str(e)}")
+        logger.error(f"Error retrieving document by ID: {str(e)}")
         return None
-
 
 def search_documents(query, limit=5):
     """
@@ -162,15 +175,19 @@ def search_documents(query, limit=5):
         list: List of Document objects matching the query
     """
     try:
-        # Simple search by title and content
-        search_term = f"%{query}%"
-        documents = Document.query.filter(
-            (Document.title.ilike(search_term)) | 
-            (Document.content.ilike(search_term))
-        ).order_by(Document.published_date.desc()).limit(limit).all()
-        
-        return documents
-        
+        with app.app_context():
+            # Simple search using SQLAlchemy
+            results = Document.query.filter(
+                db.or_(
+                    Document.title.ilike(f"%{query}%"),
+                    Document.content.ilike(f"%{query}%"),
+                    Document.description.ilike(f"%{query}%")
+                )
+            ).order_by(Document.updated_at.desc()).limit(limit).all()
+            
+            logger.info(f"Document search for '{query}' returned {len(results)} results")
+            return results
+            
     except Exception as e:
         logger.error(f"Error searching documents: {str(e)}")
         return []
