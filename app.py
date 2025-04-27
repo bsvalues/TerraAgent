@@ -1,5 +1,10 @@
 import os
+import sys
+import platform
 import logging
+import datetime
+import flask
+import threading
 from flask import Flask, render_template, jsonify, request, session
 from utils.auth import get_sql_connection_string
 from utils.monitoring import setup_logging, QUERY_COUNTER
@@ -12,7 +17,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from dotenv import load_dotenv
 from prometheus_client import start_http_server
-import threading
+import langchain  # for version info
 
 # Load environment variables
 load_dotenv()
@@ -373,6 +378,63 @@ def list_documents():
         error_message = str(e)
         logger.error(f"Error listing documents: {error_message}")
         return jsonify({"error": error_message}), 500
+        
+@app.route('/api/status', methods=['GET'])
+def system_status():
+    """
+    API endpoint to get the current system status.
+    Returns information about available services and their status.
+    """
+    try:
+        status = {
+            "database": langchain_db is not None,
+            "vector_store": qa_chain is not None and "vector_store" not in str(qa_chain),
+            "ai_model": True,  # Always assume AI model is available
+            "levy_calculator": levy_chain is not None,
+            "trends_analyzer": trends_chain is not None and "fallback" not in str(trends_chain)
+        }
+        
+        # Log status check
+        logger.info(f"System status check: {status}")
+        
+        # Get component versions where available
+        versions = {
+            "python": platform.python_version(),
+            "flask": flask.__version__,
+            "langchain": langchain.__version__ if 'langchain' in sys.modules else "Not available"
+        }
+        
+        # Get document statistics
+        doc_stats = {}
+        try:
+            from models import Document
+            doc_count = Document.query.count()
+            doc_stats["count"] = doc_count
+            doc_stats["last_updated"] = Document.query.order_by(Document.updated_at.desc()).first().updated_at.isoformat() if doc_count > 0 else None
+        except Exception as e:
+            logger.warning(f"Could not get document statistics: {str(e)}")
+            doc_stats["error"] = str(e)
+        
+        return jsonify({
+            "status": status,
+            "versions": versions,
+            "documents": doc_stats,
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Error getting system status: {error_message}")
+        return jsonify({
+            "error": error_message,
+            "status": {
+                "database": False,
+                "vector_store": False,
+                "ai_model": False,
+                "levy_calculator": False,
+                "trends_analyzer": False
+            }
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

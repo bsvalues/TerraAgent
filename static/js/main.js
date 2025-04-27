@@ -4,8 +4,23 @@
 let chatContainer, messageInput, sendButton, queryTypeSelect;
 let resetChatButton, loadingIndicator;
 
+// Application state
+const appState = {
+    isProcessing: false,
+    systemStatus: {
+        database: true,
+        vector_store: false,
+        ai_model: true
+    }
+};
+
 // Initialize application when DOM is fully loaded
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize notification system
+    if (window.Notifications) {
+        window.Notifications.init();
+    }
+    
     // Get DOM elements
     chatContainer = document.getElementById('chat-container');
     messageInput = document.getElementById('message-input');
@@ -17,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Document ingestion elements
     const sidebarDocForm = document.getElementById('sidebar-document-form');
     const sidebarIngestStatus = document.getElementById('sidebar-ingest-status');
+    
+    // Set up help tooltips for query types
+    setupQueryTypeTooltips();
     
     // Set up event listeners
     sendButton.addEventListener('click', sendMessage);
@@ -38,10 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = document.getElementById('sidebar-doc-url').value;
             const title = document.getElementById('sidebar-doc-title').value;
             
-            // Show status
+            // Show loading state
             sidebarIngestStatus.classList.remove('d-none', 'text-success', 'text-danger');
             sidebarIngestStatus.classList.add('text-info');
             sidebarIngestStatus.textContent = 'Processing document...';
+            
+            // Show processing notification
+            const processingNotification = window.Notifications?.info('Processing document. This may take a few moments...', 0) || null;
             
             try {
                 // Send API request
@@ -59,11 +80,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const result = await response.json();
                 
+                // Dismiss processing notification
+                if (processingNotification && window.Notifications) {
+                    window.Notifications.dismiss(processingNotification);
+                }
+                
                 if (response.ok) {
                     // Success
                     sidebarIngestStatus.classList.remove('text-info', 'text-danger');
                     sidebarIngestStatus.classList.add('text-success');
                     sidebarIngestStatus.textContent = `Document added successfully!`;
+                    
+                    // Show success notification
+                    window.Notifications?.success(`Document "${result.title}" added successfully!`);
                     
                     // Add message to chat
                     addMessage(`I've added a new document "${result.title}" to my knowledge base. You can now ask me questions about it!`, 'assistant');
@@ -75,13 +104,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     sidebarIngestStatus.classList.remove('text-info', 'text-success');
                     sidebarIngestStatus.classList.add('text-danger');
                     sidebarIngestStatus.textContent = `Error: ${result.error}`;
+                    
+                    // Show error notification
+                    window.Notifications?.error(`Failed to add document: ${result.error}`);
                 }
             } catch (error) {
+                // Dismiss processing notification
+                if (processingNotification && window.Notifications) {
+                    window.Notifications.dismiss(processingNotification);
+                }
+                
                 // Network error
                 sidebarIngestStatus.classList.remove('text-info', 'text-success');
                 sidebarIngestStatus.classList.add('text-danger');
                 sidebarIngestStatus.textContent = `Network error`;
                 console.error('Document ingestion error:', error);
+                
+                // Show error notification
+                window.Notifications?.error('Network error. Please check your connection and try again.');
             }
         });
     }
@@ -91,81 +131,39 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingIndicator.style.display = 'none';
     }
     
+    // Check system status
+    checkSystemStatus();
+    
     // Add welcome message
     addMessage('Hello, I\'m Agent Smith from TerraAgent. Ask me anything about property assessment, CAMA data, levy calculations, or database information. You can also add documents to my knowledge base using the form in the sidebar.', 'assistant');
 });
 
-// Send message to backend
-function sendMessage() {
-    const message = messageInput.value.trim();
+/**
+ * Setup tooltips for query type selector to provide better guidance
+ */
+function setupQueryTypeTooltips() {
+    if (!queryTypeSelect) return;
     
-    // Skip if message is empty
-    if (!message) {
-        return;
-    }
+    const tooltipContent = {
+        'general': 'General queries about property data, assessments, and CAMA information.',
+        'rag': 'Search through ingested documents and knowledge base for specific information.',
+        'levy': 'Calculate property tax levies based on assessment values and exemptions.',
+        'trends': 'Analyze neighborhood trends and property value changes over time.',
+        'dbatools': 'Advanced database administration tasks and queries.'
+    };
     
-    // Get selected query type
-    const queryType = queryTypeSelect ? queryTypeSelect.value : 'general';
+    // Add help icon and tooltip container next to select
+    const queryTypeContainer = queryTypeSelect.parentElement;
+    const helpContainer = document.createElement('div');
+    helpContainer.className = 'mt-2 small text-muted query-help';
+    helpContainer.innerHTML = '<i class="fas fa-info-circle me-1"></i><span>Select a query type for better results</span>';
+    queryTypeContainer.appendChild(helpContainer);
     
-    // Add user message to chat
-    addMessage(message, 'user');
-    
-    // Clear input
-    messageInput.value = '';
-    
-    // Show loading indicator
-    if (loadingIndicator) {
-        loadingIndicator.style.display = 'inline-block';
-    }
-    
-    // Disable send button while processing
-    sendButton.disabled = true;
-    
-    // Send to backend
-    fetch('/api/query', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            query: message,
-            type: queryType
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Hide loading indicator
-        if (loadingIndicator) {
-            loadingIndicator.style.display = 'none';
-        }
-        
-        // Re-enable send button
-        sendButton.disabled = false;
-        
-        // Handle error
-        if (data.error) {
-            addMessage(`Error: ${data.error}`, 'assistant error');
-            return;
-        }
-        
-        // Add assistant response to chat
-        addMessage(data.result, 'assistant');
-        
-        // Scroll to bottom
-        scrollToBottom();
-    })
-    .catch(error => {
-        // Hide loading indicator
-        if (loadingIndicator) {
-            loadingIndicator.style.display = 'none';
-        }
-        
-        // Re-enable send button
-        sendButton.disabled = false;
-        
-        // Show error
-        addMessage(`Error: ${error.message}`, 'assistant error');
-        console.error('Error:', error);
+    // Update help text when selection changes
+    const helpText = helpContainer.querySelector('span');
+    queryTypeSelect.addEventListener('change', () => {
+        const selected = queryTypeSelect.value;
+        helpText.textContent = tooltipContent[selected] || 'Select a query type for better results';
     });
 }
 
@@ -211,12 +209,173 @@ function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+/**
+ * Check system status and display it to the user
+ */
+function checkSystemStatus() {
+    fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            // Update app state
+            if (data && data.status) {
+                appState.systemStatus = data.status;
+                
+                // Show warning for unavailable services
+                if (!data.status.vector_store) {
+                    window.Notifications?.warning('Document search functionality is limited. Vector store is unavailable.', 10000);
+                }
+                
+                // Update query type options based on availability
+                updateQueryTypeAvailability();
+            }
+        })
+        .catch(error => {
+            console.error('Error checking system status:', error);
+        });
+}
+
+/**
+ * Update query type options based on service availability
+ */
+function updateQueryTypeAvailability() {
+    if (!queryTypeSelect) return;
+    
+    // Get all options
+    const options = Array.from(queryTypeSelect.options);
+    
+    // Update options based on system status
+    options.forEach(option => {
+        // If vector store is unavailable, disable RAG option
+        if (option.value === 'rag' && !appState.systemStatus.vector_store) {
+            option.disabled = true;
+            option.text = option.text + ' (Limited)';
+        }
+        
+        // Handle other service dependencies as needed
+    });
+}
+
+/**
+ * Send message to backend
+ */
+function sendMessage() {
+    const message = messageInput.value.trim();
+    
+    // Skip if message is empty
+    if (!message) {
+        return;
+    }
+    
+    // Prevent double submission
+    if (appState.isProcessing) {
+        return;
+    }
+    
+    // Get selected query type
+    const queryType = queryTypeSelect ? queryTypeSelect.value : 'general';
+    
+    // Add user message to chat
+    addMessage(message, 'user');
+    
+    // Clear input
+    messageInput.value = '';
+    
+    // Update UI for processing state
+    appState.isProcessing = true;
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'inline-block';
+    }
+    sendButton.disabled = true;
+    
+    // Show notification for specific query types
+    let processingNotification = null;
+    if (queryType === 'rag') {
+        processingNotification = window.Notifications?.info('Searching through documents. This may take a moment...', 0);
+    } else if (queryType === 'trends') {
+        processingNotification = window.Notifications?.info('Analyzing neighborhood trends. This may take a moment...', 0);
+    }
+    
+    // Send to backend
+    fetch('/api/query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            query: message,
+            type: queryType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Reset processing state
+        appState.isProcessing = false;
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        sendButton.disabled = false;
+        
+        // Dismiss processing notification if present
+        if (processingNotification && window.Notifications) {
+            window.Notifications.dismiss(processingNotification);
+        }
+        
+        // Handle error
+        if (data.error) {
+            // Show error in chat
+            addMessage(`Error: ${data.error}`, 'assistant error');
+            
+            // Show notification
+            window.Notifications?.error(`Query error: ${data.error}`);
+            
+            // Provide recovery suggestion based on error type
+            if (data.error.includes('database') || data.error.includes('Database')) {
+                window.Notifications?.info('Try a different query type or check database connection.', 7000);
+            } else if (data.error.includes('vector store') || data.error.includes('document')) {
+                window.Notifications?.info('Document search is limited. Try a general query instead.', 7000);
+            }
+            
+            return;
+        }
+        
+        // Add assistant response to chat
+        addMessage(data.result, 'assistant');
+        
+        // Scroll to bottom
+        scrollToBottom();
+    })
+    .catch(error => {
+        // Reset processing state
+        appState.isProcessing = false;
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        sendButton.disabled = false;
+        
+        // Dismiss processing notification if present
+        if (processingNotification && window.Notifications) {
+            window.Notifications.dismiss(processingNotification);
+        }
+        
+        // Show error in chat
+        addMessage(`Error: ${error.message}`, 'assistant error');
+        
+        // Show notification
+        window.Notifications?.error('Network error. Please try again later.');
+        
+        console.error('Error:', error);
+    });
+}
+
 // Reset chat history
 function resetChat() {
     // Clear chat container
     while (chatContainer.firstChild) {
         chatContainer.removeChild(chatContainer.firstChild);
     }
+    
+    // Show notification
+    window.Notifications?.info('Resetting chat history...');
     
     // Send reset request to backend
     fetch('/api/reset_chat', {
@@ -226,8 +385,12 @@ function resetChat() {
     .then(data => {
         // Add welcome message
         addMessage('Chat history has been reset. I\'m Agent Smith - how can I assist with your property assessment needs today?', 'assistant');
+        
+        // Show success notification
+        window.Notifications?.success('Chat history has been reset successfully.');
     })
     .catch(error => {
         console.error('Error resetting chat:', error);
+        window.Notifications?.error('Failed to reset chat history. Please try again.');
     });
 }
