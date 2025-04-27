@@ -241,10 +241,19 @@
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Notification System -->
+    <script src="/static/js/notifications.js"></script>
     
     <!-- Dashboard Charts and Functionality -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Initialize notifications
+            if (window.Notifications) {
+                window.Notifications.init();
+                // Show welcome notification on dashboard
+                window.Notifications.info('Welcome to TerraAgent Dashboard. View system stats and manage documents here.');
+            }
+            
             // Document Ingestion Form Handler
             const documentForm = document.getElementById('documentForm');
             const ingestStatus = document.getElementById('ingestStatus');
@@ -259,10 +268,13 @@
                     const docType = document.getElementById('docType').value;
                     const description = document.getElementById('docDescription').value;
                     
-                    // Show status
+                    // Show status with both inline and notification
                     ingestStatus.classList.remove('d-none', 'alert-success', 'alert-danger');
                     ingestStatus.classList.add('alert-info');
                     ingestStatus.textContent = 'Processing document...';
+                    
+                    // Show processing notification
+                    const processingNotification = window.Notifications?.info('Processing document. This may take a few moments...', 0) || null;
                     
                     try {
                         // Send API request
@@ -281,25 +293,44 @@
                         
                         const result = await response.json();
                         
+                        // Dismiss processing notification
+                        if (processingNotification && window.Notifications) {
+                            window.Notifications.dismiss(processingNotification);
+                        }
+                        
                         if (response.ok) {
-                            // Success
+                            // Success - update inline status
                             ingestStatus.classList.remove('alert-info', 'alert-danger');
                             ingestStatus.classList.add('alert-success');
                             ingestStatus.textContent = `Document "${result.title}" ingested successfully!`;
                             
+                            // Show success notification
+                            window.Notifications?.success(`Document "${result.title}" added successfully!`);
+                            
                             // Clear form
                             documentForm.reset();
                         } else {
-                            // Error
+                            // Error - update inline status
                             ingestStatus.classList.remove('alert-info', 'alert-success');
                             ingestStatus.classList.add('alert-danger');
                             ingestStatus.textContent = `Error: ${result.error}`;
+                            
+                            // Show error notification
+                            window.Notifications?.error(`Failed to add document: ${result.error}`);
                         }
                     } catch (error) {
-                        // Network error
+                        // Dismiss processing notification
+                        if (processingNotification && window.Notifications) {
+                            window.Notifications.dismiss(processingNotification);
+                        }
+                        
+                        // Network error - update inline status
                         ingestStatus.classList.remove('alert-info', 'alert-success');
                         ingestStatus.classList.add('alert-danger');
                         ingestStatus.textContent = `Network error: ${error.message}`;
+                        
+                        // Show error notification
+                        window.Notifications?.error(`Network error: ${error.message}`);
                     }
                 });
             }

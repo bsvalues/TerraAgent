@@ -131,8 +131,25 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingIndicator.style.display = 'none';
     }
     
-    // Check system status
-    checkSystemStatus();
+    // Link system status with our app state
+    if (window.SystemStatus) {
+        // Use the SystemStatus component
+        const initialStatus = window.SystemStatus.getStatus();
+        if (initialStatus) {
+            appState.systemStatus = initialStatus;
+        }
+        
+        // Custom event for status updates
+        document.addEventListener('systemStatusUpdate', function(e) {
+            if (e.detail && e.detail.status) {
+                appState.systemStatus = e.detail.status;
+                updateQueryTypeAvailability();
+            }
+        });
+    } else {
+        // Fallback: check status directly if component not available
+        checkSystemStatus();
+    }
     
     // Add welcome message
     addMessage('Hello, I\'m Agent Smith from TerraAgent. Ask me anything about property assessment, CAMA data, levy calculations, or database information. You can also add documents to my knowledge base using the form in the sidebar.', 'assistant');

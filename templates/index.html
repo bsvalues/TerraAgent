@@ -92,6 +92,22 @@
                             </button>
                         </div>
                     </div>
+                    
+                    <!-- System Status Panel -->
+                    <div class="card bg-dark mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-server me-2"></i>System Status</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="system-status-container">
+                                <!-- Status indicators will be inserted here -->
+                            </div>
+                            <div class="mt-2 small text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Status updates every 30 seconds
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="col-lg-9">
@@ -126,7 +142,31 @@
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Notification System -->
+    <script src="/static/js/notifications.js"></script>
+    <!-- System Status Component -->
+    <script src="/static/js/system-status.js"></script>
     <!-- Custom JS -->
     <script src="/static/js/main.js"></script>
+    
+    <!-- Initialize Components -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize notifications
+            if (window.Notifications) {
+                window.Notifications.init();
+            }
+            
+            // Initialize system status
+            if (window.SystemStatus) {
+                window.SystemStatus.init(document.getElementById('system-status-container'));
+            }
+            
+            // Add welcome message to chat
+            if (window.addMessage) {
+                addMessage("Hello! I'm the TerraAgent assistant. How can I help with your property assessment needs today?", 'assistant');
+            }
+        });
+    </script>
 </body>
 </html>
