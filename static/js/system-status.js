@@ -114,6 +114,9 @@ function fetchSystemStatus() {
         .then(response => response.json())
         .then(data => {
             if (data && data.status) {
+                // Get previous status for comparison
+                const previousStatus = { ...systemStatus };
+                
                 // Update the local status state
                 systemStatus = { ...data.status };
                 
@@ -122,19 +125,40 @@ function fetchSystemStatus() {
                 
                 // Notify on critical status changes (first load is handled separately)
                 if (window.initialStatusCheck) {
-                    notifyStatusChanges(data.status);
+                    notifyStatusChanges(data.status, previousStatus);
                 } else {
                     window.initialStatusCheck = true;
                 }
+                
+                // Dispatch custom event for other components to react
+                const statusEvent = new CustomEvent('systemStatusUpdate', { 
+                    detail: { 
+                        status: systemStatus,
+                        previous: previousStatus,
+                        timestamp: new Date().toISOString()
+                    } 
+                });
+                document.dispatchEvent(statusEvent);
             }
         })
         .catch(error => {
             console.error('Error fetching system status:', error);
             // Mark all services as unknown on error
+            const previousStatus = { ...systemStatus };
             for (const [key, _] of Object.entries(systemStatus)) {
                 systemStatus[key] = null;
             }
             updateStatusIndicators();
+            
+            // Dispatch error event
+            const errorEvent = new CustomEvent('systemStatusError', { 
+                detail: { 
+                    error: error.message,
+                    previous: previousStatus,
+                    timestamp: new Date().toISOString()
+                } 
+            });
+            document.dispatchEvent(errorEvent);
         });
 }
 
@@ -167,8 +191,9 @@ function updateStatusIndicators() {
 /**
  * Notify the user of critical status changes
  * @param {Object} newStatus - The new system status
+ * @param {Object} previousStatus - The previous system status for comparison
  */
-function notifyStatusChanges(newStatus) {
+function notifyStatusChanges(newStatus, previousStatus) {
     // Only notify about critical services
     const criticalServices = {
         'database': 'Database',
@@ -178,11 +203,11 @@ function notifyStatusChanges(newStatus) {
     
     for (const [key, label] of Object.entries(criticalServices)) {
         // Check if status changed for this service
-        if (newStatus[key] !== systemStatus[key]) {
-            if (newStatus[key] === true && systemStatus[key] === false) {
+        if (newStatus[key] !== previousStatus[key]) {
+            if (newStatus[key] === true && previousStatus[key] === false) {
                 // Service became available
                 window.Notifications?.success(`${label} is now available!`);
-            } else if (newStatus[key] === false && systemStatus[key] === true) {
+            } else if (newStatus[key] === false && previousStatus[key] === true) {
                 // Service became unavailable
                 window.Notifications?.warning(`${label} is currently unavailable. Some features may be limited.`);
             }
