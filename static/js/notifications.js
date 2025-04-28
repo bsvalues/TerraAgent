@@ -118,32 +118,65 @@ function showNotification(message, type = 'info', duration = 5000) {
     // Initialize if not already done
     initNotifications();
     
-    // Create notification element
+    // Create notification element with accessibility attributes
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
+    notification.setAttribute('role', 'alert');
+    notification.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     
-    // Create content
+    // Add unique ID for accessibility references
+    const notificationId = 'notification-' + Date.now();
+    notification.id = notificationId;
+    
+    // Map type to text for screen readers
+    const typeText = {
+        success: 'Success:',
+        error: 'Error:',
+        info: 'Information:',
+        warning: 'Warning:'
+    };
+    
+    // Create hidden type label for screen readers
+    const typeLabel = document.createElement('span');
+    typeLabel.className = 'sr-only';
+    typeLabel.textContent = typeText[type] || 'Notification:';
+    
+    // Create content with proper labeling
     const content = document.createElement('div');
     content.className = 'notification-content';
+    content.id = `${notificationId}-content`;
     content.textContent = message;
+    content.setAttribute('aria-label', `${typeText[type]} ${message}`);
     
-    // Create close button
+    // Create close button with accessibility attributes
     const closeBtn = document.createElement('button');
     closeBtn.className = 'notification-close';
     closeBtn.innerHTML = '&times;';
+    closeBtn.setAttribute('aria-label', 'Close notification');
+    closeBtn.setAttribute('title', 'Close');
     closeBtn.addEventListener('click', () => dismissNotification(notification));
     
     // Add progress bar for timed notifications
     const progressBar = document.createElement('div');
     progressBar.className = 'notification-progress';
+    progressBar.setAttribute('aria-hidden', 'true'); // Hide from screen readers
     
     // Assemble notification
+    notification.appendChild(typeLabel);
     notification.appendChild(content);
     notification.appendChild(closeBtn);
     notification.appendChild(progressBar);
     
     // Add to container
     notificationContainer.appendChild(notification);
+    
+    // Enable keyboard interaction
+    notification.setAttribute('tabindex', '0');
+    notification.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            dismissNotification(notification);
+        }
+    });
     
     // Set auto-dismiss if duration > 0
     if (duration > 0) {

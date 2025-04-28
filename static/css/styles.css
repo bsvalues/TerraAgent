@@ -139,11 +139,37 @@ body {
 
 /* Footer styling */
 .footer {
-    text-align: center;
     margin-top: 30px;
-    padding-top: 20px;
+    padding: 20px 0;
     border-top: 1px solid var(--bs-gray-700);
     color: var(--bs-gray-500);
+}
+
+/* Accessibility help panel */
+#accessibilityHelp {
+    text-align: left;
+}
+
+#accessibilityHelp .card {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#accessibilityHelp h5 {
+    color: var(--bs-info);
+    margin-bottom: 15px;
+}
+
+#accessibilityHelp ul {
+    padding-left: 20px;
+    margin-bottom: 15px;
+}
+
+#accessibilityHelp kbd {
+    background-color: var(--bs-gray-700);
+    color: var(--bs-light);
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.8rem;
 }
 
 /* Loading indicator */
@@ -308,4 +334,31 @@ body {
 .assistant-message.error {
     background-color: rgba(var(--bs-danger-rgb), 0.2);
     border-left: 4px solid var(--bs-danger);
+}
+
+/* Accessibility styles */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Focus styles for keyboard navigation */
+a:focus, button:focus, input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.message {
+    position: relative;
+}
+
+.message-content {
+    /* No special styling needed, this is where the formatted text goes */
 }

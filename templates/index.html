@@ -146,7 +146,38 @@
         
         <!-- Footer -->
         <footer class="footer">
-            <p>TerraAgent &copy; 2025 | Powered by LangChain + PostgreSQL</p>
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p>TerraAgent &copy; 2025 | Powered by LangChain + PostgreSQL</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <button class="btn btn-sm btn-outline-secondary" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#accessibilityHelp" 
+                                aria-expanded="false" 
+                                aria-controls="accessibilityHelp">
+                            <i class="fas fa-universal-access me-1"></i> Accessibility
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="collapse mt-3" id="accessibilityHelp">
+                    <div class="card card-body bg-dark border-secondary">
+                        <h5>Keyboard Shortcuts</h5>
+                        <ul class="small">
+                            <li><kbd>/</kbd> - Focus the message input</li>
+                            <li><kbd>Enter</kbd> - Send message</li>
+                            <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> - Send message (alternative)</li>
+                            <li><kbd>Alt</kbd>+<kbd>S</kbd> - Send message (alternative)</li>
+                            <li><kbd>Esc</kbd> - Clear message input when focused</li>
+                            <li><kbd>Esc</kbd> - Close notifications</li>
+                        </ul>
+                        <p class="small mb-0">This application supports screen readers and keyboard navigation. If you encounter any accessibility issues, please contact support.</p>
+                    </div>
+                </div>
+            </div>
         </footer>
     </div>
     

@@ -39,11 +39,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up help tooltips for query types
     setupQueryTypeTooltips();
     
-    // Set up event listeners
+    // Set up event listeners with improved accessibility
     sendButton.addEventListener('click', sendMessage);
+    
+    // Add keyboard support for message input
     messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent default to avoid newline in input
             sendMessage();
+        }
+    });
+    
+    // Add keyboard shortcut (Ctrl+Enter or Command+Enter also works)
+    document.addEventListener('keydown', (e) => {
+        // Alt+S or Ctrl+Enter to send message when input is focused
+        if (document.activeElement === messageInput && 
+            ((e.altKey && e.key === 's') || (e.ctrlKey && e.key === 'Enter'))) {
+            e.preventDefault();
+            sendMessage();
+        }
+        
+        // Escape key to clear input when focused
+        if (document.activeElement === messageInput && e.key === 'Escape') {
+            e.preventDefault();
+            messageInput.value = '';
+        }
+        
+        // Focus message input with / key when not in any input
+        if (e.key === '/' && 
+            !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+            messageInput.focus();
         }
     });
     
@@ -189,16 +215,51 @@ function setupQueryTypeTooltips() {
 
 // Add a message to the chat container
 function addMessage(text, role) {
-    // Create message element
+    // Create message element with proper ARIA roles for accessibility
     const messageElement = document.createElement('div');
     messageElement.className = `message ${role}-message`;
     
+    // Add ARIA roles and attributes for screen readers
+    messageElement.setAttribute('role', 'log');
+    messageElement.setAttribute('aria-live', role === 'assistant' ? 'polite' : 'off');
+    
+    // Add timestamp for screen readers (hidden visually)
+    const timestamp = new Date().toLocaleTimeString();
+    const sender = role === 'assistant' ? 'Assistant' : 'You';
+    
+    // Create message header with metadata (visually hidden for screen readers)
+    const messageHeader = document.createElement('div');
+    messageHeader.className = 'sr-only';
+    messageHeader.setAttribute('aria-hidden', 'false');
+    messageHeader.textContent = `${sender} at ${timestamp}:`;
+    messageElement.appendChild(messageHeader);
+    
+    // Create content container
+    const contentElement = document.createElement('div');
+    contentElement.className = 'message-content';
+    
     // Process markdown-like formatting in the message
     const formattedText = formatText(text);
-    messageElement.innerHTML = formattedText;
+    contentElement.innerHTML = formattedText;
+    messageElement.appendChild(contentElement);
     
     // Add to chat container
     chatContainer.appendChild(messageElement);
+    
+    // Announce to screen readers when assistant responds
+    if (role === 'assistant') {
+        const announcement = document.createElement('div');
+        announcement.className = 'sr-only';
+        announcement.setAttribute('role', 'status');
+        announcement.setAttribute('aria-live', 'assertive');
+        announcement.textContent = 'New response received';
+        document.body.appendChild(announcement);
+        
+        // Remove after it's been announced
+        setTimeout(() => {
+            document.body.removeChild(announcement);
+        }, 1000);
+    }
     
     // Scroll to bottom
     scrollToBottom();
