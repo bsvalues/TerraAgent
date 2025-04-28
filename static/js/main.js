@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.Notifications.init();
     }
     
+    // Set up form validation for all forms with needs-validation class
+    setupFormValidation();
+    
     // Get DOM elements
     chatContainer = document.getElementById('chat-container');
     messageInput = document.getElementById('message-input');
@@ -224,6 +227,48 @@ function formatText(text) {
 // Scroll chat container to bottom
 function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+/**
+ * Set up form validation for Bootstrap forms
+ */
+function setupFormValidation() {
+    // Fetch all forms with the 'needs-validation' class
+    const forms = document.querySelectorAll('.needs-validation');
+    
+    // Loop over them and prevent submission if validation fails
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            // Skip if form validation already handled by specific event handler
+            if (form.getAttribute('data-validation-handled') === 'true') {
+                return;
+            }
+            
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                // Show validation error notification
+                window.Notifications?.warning('Please fix the form errors before submitting.');
+            }
+            
+            form.classList.add('was-validated');
+        }, false);
+    });
+    
+    // Add validation to the message input
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        messageInput.addEventListener('invalid', function() {
+            if (this.value.trim() === '') {
+                window.Notifications?.info('Please enter a message before sending.');
+            } else if (this.value.length < 2) {
+                window.Notifications?.info('Your message is too short.');
+            } else if (this.value.length > 500) {
+                window.Notifications?.info('Your message is too long (maximum 500 characters).');
+            }
+        });
+    }
 }
 
 /**

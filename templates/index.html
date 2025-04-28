@@ -54,14 +54,22 @@
                             <h5><i class="fas fa-file-upload me-2"></i>Add Document</h5>
                         </div>
                         <div class="card-body">
-                            <form id="sidebar-document-form">
+                            <form id="sidebar-document-form" class="needs-validation" novalidate>
                                 <div class="mb-2">
                                     <input type="url" class="form-control form-control-sm" id="sidebar-doc-url" 
-                                           placeholder="Document URL" required>
+                                           placeholder="Document URL" required
+                                           pattern="https?://.+\..+"
+                                           title="Please enter a valid URL starting with http:// or https://">
+                                    <div class="invalid-feedback">
+                                        Please enter a valid URL
+                                    </div>
                                 </div>
                                 <div class="mb-2">
                                     <input type="text" class="form-control form-control-sm" id="sidebar-doc-title" 
-                                           placeholder="Optional title">
+                                           placeholder="Optional title" maxlength="100">
+                                    <div class="form-text text-muted small">
+                                        Will use page title if left blank
+                                    </div>
                                 </div>
                                 <div class="d-grid">
                                     <button type="submit" class="btn btn-sm btn-primary">
@@ -122,9 +130,11 @@
                             <!-- Input Area -->
                             <div class="input-area mt-3">
                                 <input type="text" id="message-input" class="form-control" 
-                                       placeholder="Type your question here...">
-                                <button id="send-button" class="btn btn-primary">
-                                    <span id="loading-indicator" class="spinner-border spinner-border-sm" role="status"></span>
+                                       placeholder="Type your question here..." 
+                                       required minlength="2" maxlength="500"
+                                       aria-label="Your question">
+                                <button id="send-button" class="btn btn-primary" title="Send message" aria-label="Send message">
+                                    <span id="loading-indicator" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                     <i class="fas fa-paper-plane"></i>
                                 </button>
                             </div>

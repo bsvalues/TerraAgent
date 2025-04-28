@@ -10,6 +10,43 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    .chat-container {
+        height: 400px;
+    }
+    
+    h1 {
+        font-size: 1.8rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .chat-container {
+        height: 300px;
+    }
+    
+    .message {
+        max-width: 85%;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
 }
 
 /* Header styling */
@@ -59,6 +96,29 @@ body {
     margin-right: 10px;
 }
 
+.input-area button {
+    min-width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@media (max-width: 576px) {
+    .input-area {
+        flex-direction: column;
+    }
+    
+    .input-area .form-control {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+    
+    .input-area button {
+        width: 100%;
+    }
+}
+
 /* Dashboard panels */
 .dashboard-panel {
     background-color: var(--bs-gray-800);
@@ -100,6 +160,20 @@ body {
     right: 20px;
     z-index: 1050;
     max-width: 350px;
+}
+
+@media (max-width: 576px) {
+    .notifications-container {
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .notification {
+        width: 100%;
+        padding: 12px;
+        font-size: 0.9rem;
+    }
 }
 
 .notification {
@@ -195,6 +269,19 @@ body {
     background-color: var(--bs-gray-900);
     padding: 6px 10px;
     border-radius: 4px;
+}
+
+@media (max-width: 576px) {
+    .system-status {
+        gap: 8px;
+        font-size: 0.8rem;
+    }
+    
+    .status-item {
+        padding: 4px 8px;
+        flex-basis: calc(50% - 4px);
+        justify-content: center;
+    }
 }
 
 .status-label {
