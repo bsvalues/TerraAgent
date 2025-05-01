@@ -14,30 +14,33 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <!-- Skip to content link for keyboard users -->
+    <a href="#main-content" class="skip-to-content">Skip to main content</a>
+    
     <div class="container">
         <!-- Header -->
         <header class="header">
             <div class="row align-items-center">
                 <div class="col-md-8">
-                    <h1><i class="fas fa-chart-line me-2"></i>TerraAgent Dashboard</h1>
+                    <h1><i class="fas fa-chart-line me-2" aria-hidden="true"></i>TerraAgent Dashboard</h1>
                     <p class="lead">Monitoring and analytics for your property assessment AI assistant</p>
                 </div>
                 <div class="col-md-4 text-end">
                     <a href="/" class="btn btn-outline-info">
-                        <i class="fas fa-comments me-1"></i> Return to Chat
+                        <i class="fas fa-comments me-1" aria-hidden="true"></i> Return to Chat
                     </a>
                 </div>
             </div>
         </header>
         
         <!-- Main Content -->
-        <main>
+        <main id="main-content">
             <!-- Quick Stats Row -->
             <div class="row mb-4">
                 <div class="col-md-3">
                     <div class="card bg-dark text-center">
                         <div class="card-body">
-                            <h2 class="card-title text-info"><i class="fas fa-database"></i></h2>
+                            <h2 class="card-title text-info"><i class="fas fa-database" aria-hidden="true"></i></h2>
                             <h5>Database Status</h5>
                             <span class="badge bg-success">Connected</span>
                         </div>
@@ -46,7 +49,7 @@
                 <div class="col-md-3">
                     <div class="card bg-dark text-center">
                         <div class="card-body">
-                            <h2 class="card-title text-warning"><i class="fas fa-question-circle"></i></h2>
+                            <h2 class="card-title text-warning"><i class="fas fa-question-circle" aria-hidden="true"></i></h2>
                             <h5>Total Queries</h5>
                             <p class="fs-4">{{ data.total_queries if data else 0 }}</p>
                         </div>
@@ -55,7 +58,7 @@
                 <div class="col-md-3">
                     <div class="card bg-dark text-center">
                         <div class="card-body">
-                            <h2 class="card-title text-danger"><i class="fas fa-exclamation-triangle"></i></h2>
+                            <h2 class="card-title text-danger"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></h2>
                             <h5>Errors</h5>
                             <p class="fs-4">{{ data.error_count if data else 0 }}</p>
                         </div>
@@ -64,7 +67,7 @@
                 <div class="col-md-3">
                     <div class="card bg-dark text-center">
                         <div class="card-body">
-                            <h2 class="card-title text-success"><i class="fas fa-clock"></i></h2>
+                            <h2 class="card-title text-success"><i class="fas fa-clock" aria-hidden="true"></i></h2>
                             <h5>Avg Response Time</h5>
                             <p class="fs-4">{{ data.avg_time if data else 0.0 }}s</p>
                         </div>
