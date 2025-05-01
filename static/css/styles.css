@@ -349,6 +349,28 @@ body {
     border-width: 0;
 }
 
+/* Skip to content link */
+.skip-to-content {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    display: block;
+    width: 100%;
+    padding: 10px;
+    text-align: center;
+    background-color: var(--bs-primary);
+    color: white;
+    text-decoration: none;
+    transition: top 0.3s;
+}
+
+.skip-to-content:focus {
+    top: 0;
+    outline: none;
+}
+
 /* Focus styles for keyboard navigation */
 a:focus, button:focus, input:focus, select:focus, textarea:focus {
     outline: 2px solid var(--bs-primary);
