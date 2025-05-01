@@ -95,6 +95,43 @@ The scripts will:
 4. Create a template .env file if needed
 5. Start the application on http://localhost:5000
 
+### Creating Deployment Packages
+
+You can easily create distribution packages for desktop deployment using our build scripts:
+
+#### On Linux/Mac:
+```bash
+# Make the script executable
+chmod +x build_deployment.sh
+
+# Run the build script
+./build_deployment.sh
+```
+
+#### On Windows:
+```
+# Simply double-click on
+build_deployment.bat
+```
+
+These scripts will:
+1. Create a deployment directory with all required files
+2. Set up template configuration files
+3. Include quick start guides
+4. Package everything into a ZIP archive ready for distribution
+5. The resulting `terraagent_deployment.zip` can be shared with end-users
+
+### Windows Desktop Shortcut
+
+For Windows users, we provide an additional script to create a desktop shortcut for truly one-click access:
+
+1. Extract the deployment package
+2. Run `create_desktop_shortcut.bat`
+3. A desktop shortcut will be created automatically
+4. Double-click the shortcut to launch TerraAgent
+
+This provides the simplest possible experience for end-users who simply want to start the application with a single click.
+
 ### Deployment Checklist
 
 - [ ] Database connection is configured
