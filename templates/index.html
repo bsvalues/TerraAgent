@@ -41,7 +41,7 @@
                             <h5><i class="fas fa-filter me-2" aria-hidden="true"></i>Query Type</h5>
                         </div>
                         <div class="card-body">
-                            <select id="query-type" class="form-select">
+                            <select id="query-type" class="form-select" aria-label="Select query type">
                                 <option value="general" selected>General Query</option>
                                 <option value="rag">Document Search</option>
                                 <option value="levy">Levy Calculation</option>
@@ -107,14 +107,14 @@
                     <!-- System Status Panel -->
                     <div class="card bg-dark mb-4">
                         <div class="card-header">
-                            <h5><i class="fas fa-server me-2"></i>System Status</h5>
+                            <h5><i class="fas fa-server me-2" aria-hidden="true"></i>System Status</h5>
                         </div>
                         <div class="card-body">
-                            <div id="system-status-container">
+                            <div id="system-status-container" aria-live="polite" aria-atomic="true">
                                 <!-- Status indicators will be inserted here -->
                             </div>
                             <div class="mt-2 small text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="fas fa-info-circle me-1" aria-hidden="true"></i>
                                 Status updates every 30 seconds
                             </div>
                         </div>
@@ -125,20 +125,25 @@
                     <!-- Chat Container -->
                     <div class="card bg-dark mb-3">
                         <div class="card-header">
-                            <h5><i class="fas fa-comments me-2"></i>Chat</h5>
+                            <h5><i class="fas fa-comments me-2" aria-hidden="true"></i>Chat</h5>
                         </div>
                         <div class="card-body">
-                            <div id="chat-container" class="chat-container"></div>
+                            <div id="chat-container" 
+                                 class="chat-container" 
+                                 role="log" 
+                                 aria-live="polite" 
+                                 aria-label="Chat conversation history">
+                            </div>
                             
                             <!-- Input Area -->
-                            <div class="input-area mt-3">
+                            <div class="input-area mt-3" role="form" aria-label="Message input form">
                                 <input type="text" id="message-input" class="form-control" 
                                        placeholder="Type your question here..." 
                                        required minlength="2" maxlength="500"
                                        aria-label="Your question">
                                 <button id="send-button" class="btn btn-primary" title="Send message" aria-label="Send message">
                                     <span id="loading-indicator" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <i class="fas fa-paper-plane"></i>
+                                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
@@ -161,7 +166,7 @@
                                 data-bs-target="#accessibilityHelp" 
                                 aria-expanded="false" 
                                 aria-controls="accessibilityHelp">
-                            <i class="fas fa-universal-access me-1"></i> Accessibility
+                            <i class="fas fa-universal-access me-1" aria-hidden="true"></i> Accessibility
                         </button>
                     </div>
                 </div>
