@@ -1,10 +1,10 @@
 import os
 import logging
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from models import Document
 from utils.monitoring import record_query, record_response_time
+from utils.llm_providers import get_llm
 import time
 
 # Get logger
@@ -20,18 +20,14 @@ def create_rag_chain():
         callable: A function that takes a query and returns an answer
     """
     try:
-        # Check for OpenAI API key
-        if not os.getenv("OPENAI_API_KEY"):
-            logger.critical("OpenAI API key not found in environment variables")
-            raise ValueError("OPENAI_API_KEY environment variable is required")
+        # Initialize the LLM based on configuration
+        try:
+            llm = get_llm()
+            logger.info(f"Successfully initialized LLM for RAG from configured provider")
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM for RAG: {str(e)}")
+            return None
             
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
-        llm = ChatOpenAI(
-            model="gpt-4o",
-            temperature=0
-        )
-        
         # Create a prompt template for RAG
         template = """You are Agent Smith, the AI assistant for TerraAgent, a property tax and valuation analysis system.
 

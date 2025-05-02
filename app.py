@@ -11,7 +11,7 @@ from utils.monitoring import setup_logging, QUERY_COUNTER
 from utils.dbatools import run_dbatools
 from chains.levy_calculator import create_levy_chain
 from chains.neighborhood_trends import create_neighborhood_trend_chain
-from langchain_openai import OpenAI
+from utils.llm_providers import get_llm, available_providers
 from langchain_community.utilities.sql_database import SQLDatabase
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
@@ -81,11 +81,9 @@ try:
         
         # Create simple template for trends analysis
         from langchain_core.prompts import ChatPromptTemplate
-        from langchain_openai import ChatOpenAI
         
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
-        trends_llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        # Get LLM using provider configuration
+        trends_llm = get_llm()
         trends_template = """You are analyzing neighborhood property trends. 
         However, you currently do not have access to the actual data. 
         Please inform the user that the neighborhood trend analysis is currently unavailable 
@@ -164,6 +162,10 @@ def dashboard():
                 "type": err.query_type
             })
         
+        # Get current LLM provider
+        current_provider = os.getenv("LLM_PROVIDER", "openai")
+        available_llms = ", ".join(available_providers())
+        
         # Pass data to template
         dashboard_data = {
             "total_queries": total_queries,
@@ -175,7 +177,9 @@ def dashboard():
             "assessment_count": assessment_count,
             "sale_count": sale_count,
             "neighborhood_count": neighborhood_count,
-            "recent_errors": errors
+            "recent_errors": errors,
+            "llm_provider": current_provider,
+            "available_llms": available_llms
         }
         
         return render_template('dashboard.html', data=dashboard_data)
@@ -378,6 +382,23 @@ def list_documents():
         error_message = str(e)
         logger.error(f"Error listing documents: {error_message}")
         return jsonify({"error": error_message}), 500
+
+@app.route('/api/llm_providers', methods=['GET'])
+def list_llm_providers():
+    """API endpoint to list available LLM providers."""
+    try:
+        providers = available_providers()
+        current = os.getenv("LLM_PROVIDER", "openai")
+        
+        return jsonify({
+            "providers": providers,
+            "current": current
+        })
+        
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Error listing LLM providers: {error_message}")
+        return jsonify({"error": error_message}), 500
         
 @app.route('/api/status', methods=['GET'])
 def system_status():
@@ -404,6 +425,12 @@ def system_status():
             "langchain": langchain.__version__ if 'langchain' in sys.modules else "Not available"
         }
         
+        # Get LLM provider info
+        llm_info = {
+            "provider": os.getenv("LLM_PROVIDER", "openai"),
+            "available_providers": available_providers()
+        }
+        
         # Get document statistics
         doc_stats = {}
         try:
@@ -418,6 +445,7 @@ def system_status():
         return jsonify({
             "status": status,
             "versions": versions,
+            "llm": llm_info,
             "documents": doc_stats,
             "timestamp": datetime.datetime.utcnow().isoformat()
         })

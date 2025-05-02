@@ -1,7 +1,6 @@
 import os
 import logging
-from langchain_openai import OpenAI
-from langchain_openai import ChatOpenAI
+from utils.llm_providers import get_llm, available_providers
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain.chains import SQLDatabaseChain
 from langchain_community.agent_toolkits.sql.base import create_sql_agent
@@ -35,18 +34,14 @@ except Exception as e:
     logger.critical(f"Failed to initialize database: {str(e)}")
     raise
 
-# Check for OpenAI API key
-if not os.getenv("OPENAI_API_KEY"):
-    logger.critical("OpenAI API key not found in environment variables")
-    raise ValueError("OPENAI_API_KEY environment variable is required")
-
-# Initialize the newest OpenAI model
-# the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-# do not change this unless explicitly requested by the user
-llm = ChatOpenAI(
-    model="gpt-4o",
-    temperature=0
-)
+# Initialize the LLM based on configuration
+try:
+    # Get the configured LLM
+    llm = get_llm()
+    logger.info(f"Successfully initialized LLM from provider: {os.getenv('LLM_PROVIDER', 'openai')}")
+except Exception as e:
+    logger.critical(f"Failed to initialize LLM: {str(e)}")
+    raise
 
 # Create an advanced SQL agent with toolkit
 toolkit = SQLDatabaseToolkit(
